@@ -1,0 +1,7 @@
+{
+  "hostname"         : "localhost",
+  "port"             : "8080",
+  "useTLS"           : false,
+  "certFilename"     : "",
+  "keyFilename"      : ""
+}
