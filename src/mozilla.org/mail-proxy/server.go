@@ -9,9 +9,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 )
 
 type ServerConfig struct {
+	Debug		 bool	`json:"debug"`
 	Hostname     string `json:"hostname"`
 	Port         string `json:"port"`
 	UseTLS       bool   `json:"useTLS"`
@@ -20,6 +23,31 @@ type ServerConfig struct {
 }
 
 var gServerConfig ServerConfig
+
+func notifyNewMessageHandler(request *registrationRequest) {
+	body := strings.NewReader("version=" + string(int32(time.Now().Unix())))
+	r, err := http.NewRequest("PUT", request.OnNewMessageURL, body)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	var client *http.Client
+
+	if gServerConfig.UseTLS {
+		client = &http.Client{}
+	} else {
+		config := &tls.Config{InsecureSkipVerify: true} // this line here
+		tr := &http.Transport{TLSClientConfig: config}
+		client = &http.Client{Transport: tr}
+	}
+
+	_, err = client.Do(r)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+}
 
 func readConfig() {
 
@@ -47,7 +75,7 @@ type registrationRequest struct {
 	OnReconnectURL  string `json:"onReconnectURL"`
 }
 
-func notifyHandler(w http.ResponseWriter, r *http.Request) {
+func registerHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("Got notification from app server ", r.URL)
 	if r.Method != "POST" {
 		w.WriteHeader(http.StatusOK)
@@ -78,8 +106,6 @@ func notifyHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("got onNewMessageURL: ", request.OnNewMessageURL)
 	log.Println("got onReconnectURL: ", request.OnReconnectURL)
 
-	// do a bunch of magic here
-
 	conn, err := tls.Dial("tcp", "imap.gmail.com:993", nil)
 	var reader io.Reader = conn
 	im := imap.New(reader, conn)
@@ -103,6 +129,31 @@ func notifyHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("%s", resp)
 	log.Println("server capabilities: %s", caps)
 
+	respExamine, err := im.Examine("inbox")
+	log.Println("EXISTS: ", respExamine.Exists)
+
+	log.Println("Beginnig to IDLE")
+	idleChan, err := im.Idle()
+
+	if err != nil {
+		log.Println("failed to send IDLE command")
+	}
+
+	go func() {
+		for {
+			select {
+			case message := <-idleChan:
+				switch message := message.(type) {
+				case *imap.ResponseExists:
+					// Save this, and whenever it increases, send push
+					// notification
+					log.Println("Got EXISTS ", message.Count)
+					notifyNewMessageHandler(request)
+				}
+			}
+		}
+	}()
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK\n"))
 }
@@ -111,7 +162,7 @@ func main() {
 
 	readConfig()
 
-	http.HandleFunc("/register", notifyHandler)
+	http.HandleFunc("/register", registerHandler)
 
 	log.Println("Listening on", gServerConfig.Hostname+":"+gServerConfig.Port)
 
