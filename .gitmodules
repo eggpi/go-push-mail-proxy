@@ -1,3 +1,3 @@
 [submodule "src/go-imap"]
 	path = src/go-imap
-	url = git://github.com/NerdGGuy/go-imap.git
+	url = git://github.com/guilherme-pg/go-imap.git
