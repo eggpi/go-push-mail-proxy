@@ -4,6 +4,6 @@
   "port"                    : "8080",
   "useTLS"                  : false,
   "certFilename"            : "",
-  "keyFilename"             : ""
+  "keyFilename"             : "",
   "IDLETimeoutMinutes"      : 29
 }
