@@ -103,6 +103,30 @@ func notifyHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("%s", resp)
 	log.Println("server capabilities: %s", caps)
 
+	respExamine, err := im.Examine("inbox")
+	log.Println("EXISTS: ", respExamine.Exists)
+
+	log.Println("Beginnig to IDLE")
+	idleChan, err := im.Idle()
+
+	if err != nil {
+		log.Println("failed to send IDLE command")
+	}
+
+	go func () {
+		for {
+			select {
+			case message := <-idleChan:
+				switch message := message.(type) {
+				case *imap.ResponseExists:
+					// Save this, and whenever it increases, send push
+					// notification
+					log.Println("Got EXISTS ", message.Count)
+				}
+			}
+		}
+	}()
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK\n"))
 }
