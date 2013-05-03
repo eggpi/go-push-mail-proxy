@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"fmt"
 )
 
 type ServerConfig struct {
@@ -20,6 +21,7 @@ type ServerConfig struct {
 	UseTLS       bool   `json:"useTLS"`
 	CertFilename string `json:"certFilename"`
 	KeyFilename  string `json:"keyFilename"`
+	IDLETimeout  int    `json:"IDLETimeoutMinutes"`
 }
 
 var gServerConfig ServerConfig
@@ -145,12 +147,25 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			case message := <-idleChan:
 				switch message := message.(type) {
 				case *imap.ResponseExists:
-					// Save this, and whenever it increases, send push
-					// notification
 					log.Println("Got EXISTS ", message.Count)
 					notifyNewMessageHandler(request)
+				case *imap.ResponseStatus:
+					if message.Status != imap.OK {
+						panic(fmt.Sprintf("Non-OK response from IDLE: %+v", message))
+					}
+
+					log.Println("Restarting IDLE")
+					idleChan, err = im.Idle()
 				}
-			}
+			case <-time.After(time.Duration(gServerConfig.IDLETimeout) * time.Minute):
+				/* RFC 2177:
+				 * (...) clients using IDLE are advised to terminate the IDLE and
+				 * re-issue it at least every 29 minutes to avoid being logged
+				 * off.
+				 */
+				 log.Println("Sending DONE")
+				 im.Done()
+			 }
 		}
 	}()
 

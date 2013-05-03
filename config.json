@@ -1,8 +1,9 @@
 {
-  "debug"            : true,
-  "hostname"         : "localhost",
-  "port"             : "8080",
-  "useTLS"           : false,
-  "certFilename"     : "",
-  "keyFilename"      : ""
+  "debug"                   : true,
+  "hostname"                : "localhost",
+  "port"                    : "8080",
+  "useTLS"                  : false,
+  "certFilename"            : "",
+  "keyFilename"             : ""
+  "IDLETimeoutMinutes"      : 29
 }
