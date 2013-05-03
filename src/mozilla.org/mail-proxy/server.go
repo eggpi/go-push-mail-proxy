@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"go-imap"
 	"io"
 	"io/ioutil"
@@ -11,7 +12,6 @@ import (
 	"os"
 	"strings"
 	"time"
-	"fmt"
 )
 
 type ServerConfig struct {
@@ -163,9 +163,9 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 				 * re-issue it at least every 29 minutes to avoid being logged
 				 * off.
 				 */
-				 log.Println("Sending DONE")
-				 im.Done()
-			 }
+				log.Println("Sending DONE")
+				im.Done()
+			}
 		}
 	}()
 
