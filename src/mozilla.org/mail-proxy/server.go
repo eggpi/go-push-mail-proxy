@@ -14,7 +14,7 @@ import (
 )
 
 type ServerConfig struct {
-	Debug		 bool	`json:"debug"`
+	Debug        bool   `json:"debug"`
 	Hostname     string `json:"hostname"`
 	Port         string `json:"port"`
 	UseTLS       bool   `json:"useTLS"`
