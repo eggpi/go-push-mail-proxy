@@ -78,6 +78,61 @@ func readConfig() {
 	}
 }
 
+func IDLEMonitor(im *imap.IMAP, request *registrationRequest) {
+	// EXAMINE once to select inbox
+	if respExamine, err := im.Examine("inbox"); err != nil {
+		log.Println("failed to examine inbox", err)
+		return
+	} else {
+		log.Println("EXISTS: ", respExamine.Exists)
+	}
+
+	log.Println("Beginnig to IDLE")
+	idleChan, err := im.Idle()
+
+	if err != nil {
+		log.Println("failed to send IDLE command")
+	}
+
+	for {
+		select {
+		case message, open := <-idleChan:
+			if !open {
+				log.Println("Attempting reconnect")
+				notifyReconnectHandler(request)
+				return
+			}
+
+			switch message := message.(type) {
+			case *imap.ResponseExists:
+				log.Println("Got EXISTS ", message.Count)
+				notifyNewMessageHandler(request)
+			case *imap.ResponseStatus:
+				if message.Status != imap.OK {
+					panic(fmt.Sprintf("Non-OK response from IDLE: %+v", message))
+				}
+
+				log.Println("Restarting IDLE")
+				idleChan, err = im.Idle()
+			}
+		case <-time.After(time.Duration(gServerConfig.IDLETimeout) * time.Minute):
+			/* RFC 2177:
+			 * (...) clients using IDLE are advised to terminate the IDLE and
+			 * re-issue it at least every 29 minutes to avoid being logged
+			 * off.
+			 */
+			log.Println("Sending DONE")
+			im.Done()
+		}
+	}
+}
+
+func EXAMINEMonitor(im *imap.IMAP, request *registrationRequest) {
+	// What to do here?
+	// Reconnect and EXAMINE every 5min or so?
+	// How to detect new messages?
+}
+
 type registrationRequest struct {
 	Username        string `json:"username"`
 	Password        string `json:"password"`
@@ -136,52 +191,34 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("%s", resp)
-	log.Println("server capabilities: %s", caps)
+	log.Println(resp)
 
-	respExamine, err := im.Examine("inbox")
-	log.Println("EXISTS: ", respExamine.Exists)
-
-	log.Println("Beginnig to IDLE")
-	idleChan, err := im.Idle()
-
-	if err != nil {
-		log.Println("failed to send IDLE command")
+	if len(caps) == 0 {
+		// Explicitly ask for capabilities if they haven't
+		// been given on authentication.
+		// Yahoo (and who knows who else) sends capabilities before
+		// auth so they end up in the unsolicited channel.
+		caps, err = im.Capability()
+		if err != nil {
+			log.Println("failed to fetch capabilities")
+			return
+		}
 	}
 
-	go func() {
-		for {
-			select {
-			case message, open := <-idleChan:
-				if !open {
-					log.Println("Attempting reconnect")
-					notifyReconnectHandler(request)
-					return
-				}
+	log.Println("server capabilities:", caps)
 
-				switch message := message.(type) {
-				case *imap.ResponseExists:
-					log.Println("Got EXISTS ", message.Count)
-					notifyNewMessageHandler(request)
-				case *imap.ResponseStatus:
-					if message.Status != imap.OK {
-						panic(fmt.Sprintf("Non-OK response from IDLE: %+v", message))
-					}
-
-					log.Println("Restarting IDLE")
-					idleChan, err = im.Idle()
-				}
-			case <-time.After(time.Duration(gServerConfig.IDLETimeout) * time.Minute):
-				/* RFC 2177:
-				 * (...) clients using IDLE are advised to terminate the IDLE and
-				 * re-issue it at least every 29 minutes to avoid being logged
-				 * off.
-				 */
-				log.Println("Sending DONE")
-				im.Done()
-			}
+	hasIDLE := false
+	for _, c := range caps {
+		if c == "IDLE" {
+			hasIDLE = true
 		}
-	}()
+	}
+
+	if hasIDLE {
+		go IDLEMonitor(im, request)
+	} else {
+		go EXAMINEMonitor(im, request)
+	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK\n"))
