@@ -181,13 +181,13 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("imap didn't start...")
 		return
 	}
-	log.Println("server hello: %s", hello)
+	log.Println("server hello:", hello)
 
 	log.Println("logging in...")
 
 	resp, caps, err := im.Auth(request.Username, request.Password)
 	if err != nil {
-		log.Println("server failed to auth: %s", err)
+		log.Println("server failed to auth:", err)
 		return
 	}
 
