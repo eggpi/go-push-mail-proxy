@@ -83,6 +83,7 @@ type registrationRequest struct {
 	Password        string `json:"password"`
 	OnNewMessageURL string `json:"onNewMessageURL"`
 	OnReconnectURL  string `json:"onReconnectURL"`
+	IMAPServer      string `json:"IMAPServer"`
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -115,8 +116,9 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("got password: ", request.Password)
 	log.Println("got onNewMessageURL: ", request.OnNewMessageURL)
 	log.Println("got onReconnectURL: ", request.OnReconnectURL)
+	log.Println("got IMAP server: ", request.IMAPServer)
 
-	conn, err := tls.Dial("tcp", "imap.gmail.com:993", nil)
+	conn, err := tls.Dial("tcp", request.IMAPServer, nil)
 	var reader io.Reader = conn
 	im := imap.New(reader, conn)
 	im.Unsolicited = make(chan interface{}, 100)
