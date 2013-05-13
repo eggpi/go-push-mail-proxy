@@ -26,9 +26,9 @@ type ServerConfig struct {
 
 var gServerConfig ServerConfig
 
-func notifyNewMessageHandler(request *registrationRequest) {
+func sendNotification(endpoint string) {
 	body := strings.NewReader("version=" + string(int32(time.Now().Unix())))
-	r, err := http.NewRequest("PUT", request.OnNewMessageURL, body)
+	r, err := http.NewRequest("PUT", endpoint, body)
 	if err != nil {
 		log.Println(err)
 		return
@@ -49,6 +49,14 @@ func notifyNewMessageHandler(request *registrationRequest) {
 		log.Println(err)
 		return
 	}
+}
+
+func notifyNewMessageHandler(request *registrationRequest) {
+	sendNotification(request.OnNewMessageURL)
+}
+
+func notifyReconnectHandler(request *registrationRequest) {
+	sendNotification(request.OnReconnectURL)
 }
 
 func readConfig() {
@@ -75,6 +83,7 @@ type registrationRequest struct {
 	Password        string `json:"password"`
 	OnNewMessageURL string `json:"onNewMessageURL"`
 	OnReconnectURL  string `json:"onReconnectURL"`
+	IMAPServer      string `json:"IMAPServer"`
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -107,8 +116,9 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("got password: ", request.Password)
 	log.Println("got onNewMessageURL: ", request.OnNewMessageURL)
 	log.Println("got onReconnectURL: ", request.OnReconnectURL)
+	log.Println("got IMAP server: ", request.IMAPServer)
 
-	conn, err := tls.Dial("tcp", "imap.gmail.com:993", nil)
+	conn, err := tls.Dial("tcp", request.IMAPServer, nil)
 	var reader io.Reader = conn
 	im := imap.New(reader, conn)
 	im.Unsolicited = make(chan interface{}, 100)
@@ -144,7 +154,13 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		for {
 			select {
-			case message := <-idleChan:
+			case message, open := <-idleChan:
+				if !open {
+					log.Println("Attempting reconnect")
+					notifyReconnectHandler(request)
+					return
+				}
+
 				switch message := message.(type) {
 				case *imap.ResponseExists:
 					log.Println("Got EXISTS ", message.Count)
