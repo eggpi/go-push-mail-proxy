@@ -27,12 +27,14 @@ type ServerConfig struct {
 var gServerConfig ServerConfig
 
 func sendNotification(endpoint string) {
-	body := strings.NewReader("version=" + string(int32(time.Now().Unix())))
-	r, err := http.NewRequest("PUT", endpoint, body)
+	body := fmt.Sprintf("version=%d", uint64(time.Now().Unix()))
+	r, err := http.NewRequest("PUT", endpoint, strings.NewReader(body))
 	if err != nil {
 		log.Println(err)
 		return
 	}
+
+	r.Header["Content-Type"] = []string{"application/x-www-form-urlencoded"}
 
 	var client *http.Client
 
