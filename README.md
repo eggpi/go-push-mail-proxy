@@ -18,4 +18,4 @@ To run:
 
 To test:
 ```
-curl -i -X POST -d  '{"username":"foo", "password":"bar", "onNewMessageURL":"http://", "onReconnectURL":"http://"}' localhost:8080/register
+curl -i -X POST -d  '{"username":"foo", "password":"bar", "onNewMessageURL":"http://", "onReconnectURL":"http://", "IMAPServer":"imap.gmail.com:993"}' localhost:8080/register
