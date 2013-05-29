@@ -154,6 +154,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
+		var messageCount = respExamine.Exists
+
 		for {
 			select {
 			case message, open := <-idleChan:
@@ -165,8 +167,17 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 				switch message := message.(type) {
 				case *imap.ResponseExists:
+					/* GMail gives us an EXISTS after every
+					 * EXPUNGE, so we can ignore the EXPUNGEs and
+					 * just wait for the count in EXISTS to increase.
+					 * XXX Does this hold for all IMAP servers?
+					 */
 					log.Println("Got EXISTS ", message.Count)
-					notifyNewMessageHandler(request)
+					if message.Count > messageCount {
+						notifyNewMessageHandler(request)
+					}
+
+					message.Count = messageCount
 				case *imap.ResponseStatus:
 					if message.Status != imap.OK {
 						panic(fmt.Sprintf("Non-OK response from IDLE: %+v", message))
